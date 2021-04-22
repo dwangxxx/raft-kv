@@ -12,6 +12,7 @@ import (
 import "crypto/rand"
 import "math/big"
 
+// 读取ClientConfig配置
 type ClientConfig struct {
 	ClientEnd []struct {
 		Ip   string
@@ -19,7 +20,9 @@ type ClientConfig struct {
 	} `yaml:"servers"`
 }
 
+// 客户端维护的一些数据
 type Clerk struct {
+	//
 	servers []*rpcutil.ClientEnd
 	id      uuid.UUID
 	servlen int
@@ -33,6 +36,7 @@ func nrand() int64 {
 	return x
 }
 
+// 获取具体的客户端实例
 func MakeClerk(servers []*rpcutil.ClientEnd) *Clerk {
 	ck := new(Clerk)
 	ck.servers = servers
@@ -41,8 +45,9 @@ func MakeClerk(servers []*rpcutil.ClientEnd) *Clerk {
 	return ck
 }
 
+// 客户端Get函数
 func (ck *Clerk) Get(key string) string {
-
+	// 构造Get指令远程调用的参数
 	args := &GetArgs{
 		Key:    key,
 		Id:     ck.id,
@@ -52,6 +57,7 @@ func (ck *Clerk) Get(key string) string {
 	DPrintf("%v 发送 Get 请求 {Key=%v Serial=%v}",
 		ck.id, key, args.Serial)
 	for {
+		// RPC通信，请求服务器的Get指令
 		if ok := ck.servers[ck.leader].Call(RPCGet, args, reply); !ok {
 			DPrintf("%v 对 服务器 %v 的 Get 请求 (Key=%v Serial=%v) 超时",
 				ck.id, ck.leader, key, args.Serial)
@@ -64,12 +70,14 @@ func (ck *Clerk) Get(key string) string {
 				ck.id, ck.leader, key, args.Serial, reply.Value)
 			return reply.Value
 		} else if reply.Err == ErrNoKey {
+			// 没有对应的Key
 			DPrintf("%v 收到对 %v 发送的 Get 请求 {Key=%v Serial=%v} 的响应，结果为 ErrNoKey",
 				ck.id, ck.leader, key, args.Serial)
 			return NoKeyValue
 		} else if reply.Err == ErrWrongLeader {
+			// 当前请求的服务器不是leader
 			DPrintf("错误的领导者")
-			// 请求了错误的领导者，循环请求领导者
+			// 请求了错误的领导者，切换请求新的服务器
 			ck.leader = (ck.leader + 1) % ck.servlen
 			// ck.leader = 0
 			continue
@@ -80,7 +88,9 @@ func (ck *Clerk) Get(key string) string {
 	}
 }
 
+// 客户端Put或者Append操作
 func (ck *Clerk) putAppend(key string, value string, op string) {
+	// 构造Put或者Append操作的参数
 	args := &PutAppendArgs{
 		Key:    key,
 		Value:  value,
@@ -103,6 +113,7 @@ func (ck *Clerk) putAppend(key string, value string, op string) {
 			//	ck.id, ck.leader, op, key, value, args.Serial)
 			return
 		} else if reply.Err == ErrWrongLeader {
+			// 请求了错误的leader，更换请求leader
 			ck.leader = (ck.leader + 1) % ck.servlen
 			continue
 		} else {

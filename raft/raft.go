@@ -765,7 +765,7 @@ func Make(peers []*rpcutil.ClientEnd, me int,
 				}
 				wg.Done()
 			default:
-				fmt.Printf("当前Leader是: %d\n", rf.me)
+				DPrintf("当前Leader是: %d\n", rf.me)
 				rf.mu.Unlock()
 				// 如果是leader, 则发送心跳
 				rf.doAppendCh <- HeartBeat

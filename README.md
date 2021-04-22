@@ -12,7 +12,7 @@ Raft论文：[In Search of an Understandable Consensus Algorithm(Extended Versio
 
 - rpcutil: 用于实现RPC通信的一些接口, 封装了go的net库提供的RPC通信框架。
 - raft: Raft协议实现的主体部分, 主要实现了Raft协议中的leader选举和日志复制功能。
-- kv: 基于raft协议实现的一个kv数据库，用到了raft模块的东西。
+- kvdb: 基于raft协议实现的一个kv数据库，用到了raft模块的东西。
 
 下面详细介绍这几个模块：
 
@@ -117,14 +117,15 @@ func (rf *Raft) leaderElection(wonCh chan int, wgp *sync.WaitGroup)
 ```
 具体的函数调用关系如下：
 ```go
-Make函数生成一个Raft节点实例，同时里面开启两个协程不断循环进行leader选举(即调用leaderElection)以及日志复制(即调用sendLogEntry)。
-sendLogEntry(将日志复制到所有follower) -> sendAppendEntries -> Call(AppendEntries)(进行RPC通信)。
+Make函数生成一个Raft节点实例，同时里面开启两个协程不断循环进行leader选举(即调用leaderElection)以及日志复制(即调用sendLogEntry)
+sendLogEntry(将日志复制到所有follower) -> sendAppendEntries -> Call(AppendEntries)(进行RPC通信)
 leaderElection -> sendRequestVote -> Call(RequestVote)(进行RPC通信来做leader选举)
 ```
 
-- kv模块
+- kvdb模块
 
-kv模块主要基于raft模块实现了一个分布式的kv数据库，主要结构体如下：
+kvdb模块主要基于raft模块实现了一个分布式的kv数据库。
+Server的主要结构体如下：
 ```go
 type KVServer struct {
 	mu      sync.Mutex
@@ -161,8 +162,54 @@ func (kv *KVServer) goFuncGetOp()
 
 函数调用关系如下：
 ```go
-Get和PutAppend函数是供客户端进行RPC远程调用的。
-Get and PutAppend -> findReply。
-StartKVServer -> goFuncGetop。
+Get和PutAppend函数是供客户端进行RPC远程调用的
+Get and PutAppend -> findReply
+StartKVServer -> goFuncGetop
 ```
 
+Client的主要结构如下：
+```go
+// 客户端维护的一些数据
+type Clerk struct {
+	//
+	servers []*rpcutil.ClientEnd
+	id      uuid.UUID
+	servlen int
+	leader  int
+}
+```
+*client.go*主要实现了以下函数：
+```go
+// 获取具体的客户端实例
+func MakeClerk(servers []*rpcutil.ClientEnd) *Clerk
+
+// 客户端Get函数
+func (ck *Clerk) Get(key string) string
+
+// 客户端Put或者Append操作
+func (ck *Clerk) putAppend(key string, value string, op string)
+
+// 获取客户端通信实例
+func GetClientEnds(path string) []*rpcutil.ClientEnd
+```
+
+## 具体用法
+
+- 启动server
+
+下面启动包含三个节点的Raft集群，配置文件见，example/config/server1.yml，可根据自己需求更改。
+```shell
+cd .../raft-kv
+go run server/kvserver.go example/config/server1.yml
+go run server/kvserver.go example/config/server2.yml
+go run server/kvserver.go example/config/server3.yml
+```
+
+- 启动client
+
+```shell
+go run client/kvclient.go
+```
+
+Client端运行如下：
+![img.png](img/img.png)
