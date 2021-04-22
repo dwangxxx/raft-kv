@@ -110,14 +110,14 @@ func (rf *Raft) apply()
     返回:
    	一个Raft实例
 */
-func Make(peers []*rpcutil.ClientEnd, me int, persister *Persister, applyCh chan ApplyMsg) *Raft
+func MakeRaft(peers []*rpcutil.ClientEnd, me int, persister *Persister, applyCh chan ApplyMsg) *Raft
 
 // leader选举函数
 func (rf *Raft) leaderElection(wonCh chan int, wgp *sync.WaitGroup)
 ```
 具体的函数调用关系如下：
 ```go
-Make函数生成一个Raft节点实例，同时里面开启两个协程不断循环进行leader选举(即调用leaderElection)以及日志复制(即调用sendLogEntry)
+MakeRaft函数生成一个Raft节点实例，同时里面开启两个协程不断循环进行leader选举(即调用leaderElection)以及日志复制(即调用sendLogEntry)
 sendLogEntry(将日志复制到所有follower) -> sendAppendEntries -> Call(AppendEntries)(进行RPC通信)
 leaderElection -> sendRequestVote -> Call(RequestVote)(进行RPC通信来做leader选举)
 ```
@@ -142,7 +142,7 @@ type KVServer struct {
 ```
 每一个服务器包含一个Raft节点。
 
-模块主要实现了以下几个函数：
+KVServer模块主要提供了用来进行RPC通信的接口，Get和PutAppend，用来查询和添加数据, 以及一个执行Apply命令的函数：
 ```go
 // Get接口, 供Client进行RPC调用
 func (kv *KVServer) Get(args *GetArgs, reply *GetReply) error
@@ -156,15 +156,15 @@ func (kv *KVServer) findReply(op *Op, idx int, reply *CommonReply) string
 // server的入口函数, 此处创建一个KVServer实例，然后启动一个协程来做Apply到数据库的一些操作
 func StartKVServer(servers []*rpcutil.ClientEnd, me int, persister *raft.Persister, maxraftstate int) *KVServer
 
-// 这个函数不断循环从applyCh通道中读取Apply到数据库的命令，并执行
-func (kv *KVServer) goFuncGetOp()
+// 这个函数不断循环从applyCh通道中读取Apply到数据库的命令，并执行具体的命令
+func (kv *KVServer) opHandler()
 ```
 
 函数调用关系如下：
 ```go
 Get和PutAppend函数是供客户端进行RPC远程调用的
 Get and PutAppend -> findReply
-StartKVServer -> goFuncGetop
+StartKVServer -> opHandler
 ```
 
 Client的主要结构如下：

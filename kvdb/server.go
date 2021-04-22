@@ -166,7 +166,7 @@ func StartKVServer(servers []*rpcutil.ClientEnd, me int, persister *raft.Persist
 	// 新建一个ApplyMsg通道, 用于Apply命令的传送
 	kv.applyCh = make(chan raft.ApplyMsg)
 	// 调用Make函数来创建一个Raft节点实例(Make函数中会创建几个goroutine来进行leader选举以及日志的复制)
-	kv.rf = raft.Make(servers, me, persister, kv.applyCh)
+	kv.rf = raft.MakeRaft(servers, me, persister, kv.applyCh)
 	// 存放数据的字典
 	kv.data = make(map[string]string)
 	// 命令执行的返回值
@@ -178,12 +178,12 @@ func StartKVServer(servers []*rpcutil.ClientEnd, me int, persister *raft.Persist
 	}
 
 	// 创建一个协程来处理Apply到数据库的操作
-	go kv.goFuncGetOp()
+	go kv.opHandler()
 
 	return kv
 }
 
-func (kv *KVServer) goFuncGetOp() {
+func (kv *KVServer) opHandler() {
 	// for循环不断进行操作
 	for {
 		if kv.killed() {

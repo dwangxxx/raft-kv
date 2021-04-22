@@ -31,9 +31,11 @@ const (
 )
 
 func main() {
+	// 获取服务器列表
 	clientEnds := kvdb.GetClientEnds("example/config/client.yml")
 
-	clerk := kvdb.MakeClerk(clientEnds)
+	// 生成一个客户端实例
+	Client := kvdb.MakeKVClient(clientEnds)
 
 	// 命令的种类
 	commands := []*Command{
@@ -42,21 +44,21 @@ func main() {
 			Name: GET,
 			Num:  2,	// 参数个数
 			Action: func(args []string) {
-				println(clerk.Get(args[1]))
+				println(Client.Get(args[1]))
 			},
 		},
 		{
 			Name: APPEND,
 			Num:  3,
 			Action: func(args []string) {
-				clerk.Append(args[1], args[2])
+				Client.Append(args[1], args[2])
 			},
 		},
 		{
 			Name: PUT,
 			Num:  3,
 			Action: func(args []string) {
-				clerk.Put(args[1], args[2])
+				Client.Put(args[1], args[2])
 			},
 		},
 	}

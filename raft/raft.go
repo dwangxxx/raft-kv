@@ -7,11 +7,11 @@ import (
 	"math/rand"
 	"sync"
 	"time"
+	"sync/atomic"
 
 	"wang.deng/raft-kv/labgob"
 	"wang.deng/raft-kv/rpcutil"
 )
-import "sync/atomic"
 
 // 用于将日志命令Apply到状态机的数据结构
 type ApplyMsg struct {
@@ -284,6 +284,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 		idx1++
 		idx2--
 	}
+	// 删除多余的日志, 并将相应的命令也删除
 	for i := 0; i < len(deleteLogEntries); i++ {
 		delete(rf.applyCmdLogs, deleteLogEntries[i].Command)
 	}
@@ -339,7 +340,7 @@ func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, reply *Ap
 	return ok
 }
 
-// Raft节点执行命令, 调用此接口来是Raft节点执行对应的命令
+// Raft节点执行命令, 调用此接口来是Raft节点执行对应的命令, command为具体的命令
 func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	index := -1
 	term := -1
@@ -435,6 +436,7 @@ func (rf *Raft) sendLogEntry(flag int) {
 	defer wg.Done()
 	go func() {
 		// Wait阻塞, 直到引用计数为0, 当引用计数为0时, Wait方法阻塞等待的所有协程都会返回
+		// 回收协程资源
 		wg.Wait()
 		close(resultCh)
 	}()
@@ -655,7 +657,7 @@ func (rf *Raft) apply() {
 
 // 生成一个随机超时时间
 func randomTimeout(min, max int) int {
-	return rand.Intn(max-min) + min
+	return rand.Intn(max - min) + min
 }
 
 // 返回一个Raft节点实例
@@ -668,7 +670,7 @@ func randomTimeout(min, max int) int {
  返回:
 	一个Raft实例
  */
-func Make(peers []*rpcutil.ClientEnd, me int,
+func MakeRaft(peers []*rpcutil.ClientEnd, me int,
 	persister *Persister, applyCh chan ApplyMsg) *Raft {
 	rf := &Raft{}
 	rf.peers = peers
@@ -715,6 +717,8 @@ func Make(peers []*rpcutil.ClientEnd, me int,
 				func() {
 					rf.mu.Lock()
 					defer rf.mu.Unlock()
+					// 这里表示如果超过一段时间没有leader发送HeartBeat信号, 则进行一轮新的选举
+					// 只有当当前任期的leader过期才能进行下一次的选举
 					if rf.hbCnt == oldCnt {
 						// 将身份变为candidate
 						rf.identity = CANDIDATE

@@ -21,8 +21,8 @@ type ClientConfig struct {
 }
 
 // 客户端维护的一些数据
-type Clerk struct {
-	//
+type KVClient struct {
+	// 服务器列表
 	servers []*rpcutil.ClientEnd
 	id      uuid.UUID
 	servlen int
@@ -37,8 +37,8 @@ func nrand() int64 {
 }
 
 // 获取具体的客户端实例
-func MakeClerk(servers []*rpcutil.ClientEnd) *Clerk {
-	ck := new(Clerk)
+func MakeKVClient(servers []*rpcutil.ClientEnd) *KVClient {
+	ck := new(KVClient)
 	ck.servers = servers
 	ck.id = generateUUID()
 	ck.servlen = len(servers)
@@ -46,7 +46,7 @@ func MakeClerk(servers []*rpcutil.ClientEnd) *Clerk {
 }
 
 // 客户端Get函数
-func (ck *Clerk) Get(key string) string {
+func (ck *KVClient) Get(key string) string {
 	// 构造Get指令远程调用的参数
 	args := &GetArgs{
 		Key:    key,
@@ -88,8 +88,18 @@ func (ck *Clerk) Get(key string) string {
 	}
 }
 
+// 客户端Put接口
+func (ck *KVClient) Put(key string, value string) {
+	ck.putAppend(key, value, OpPut)
+}
+
+// 客户端Append接口
+func (ck *KVClient) Append(key string, value string) {
+	ck.putAppend(key, value, OpAppend)
+}
+
 // 客户端Put或者Append操作
-func (ck *Clerk) putAppend(key string, value string, op string) {
+func (ck *KVClient) putAppend(key string, value string, op string) {
 	// 构造Put或者Append操作的参数
 	args := &PutAppendArgs{
 		Key:    key,
@@ -102,6 +112,7 @@ func (ck *Clerk) putAppend(key string, value string, op string) {
 	DPrintf("%v 发送 PA 请求 {Op=%v Key=%v Value='%v' Serial=%v}",
 		ck.id, op, key, value, args.Serial)
 	for {
+		// 与服务器进行RPC通信, 调用服务器的函数
 		if ok := ck.servers[ck.leader].Call(RPCPutAppend, args, reply); !ok {
 			//DPrintf("%v 对 服务器 %v 的 PutAppend 请求 (Serial=%v Key=%v Value=%v op=%v) 超时",
 			//	ck.id, ck.leader, args.Serial, key, value, op)
@@ -121,13 +132,6 @@ func (ck *Clerk) putAppend(key string, value string, op string) {
 				ck.id, ck.leader, args.Serial, key, value, op))
 		}
 	}
-}
-
-func (ck *Clerk) Put(key string, value string) {
-	ck.putAppend(key, value, OpPut)
-}
-func (ck *Clerk) Append(key string, value string) {
-	ck.putAppend(key, value, OpAppend)
 }
 
 // 获取客户端通信实例
@@ -158,19 +162,20 @@ func getClientConfig(path string) *ClientConfig {
 		path = os.Args[1]
 	}
 
-	cfgbt, err := ioutil.ReadFile(path)
+	cfgFile, err := ioutil.ReadFile(path)
 	if err != nil {
 		panic(err)
 	}
 
 	config := &ClientConfig{}
-	err = yaml.Unmarshal(cfgbt, config)
+	err = yaml.Unmarshal(cfgFile, config)
 	if err != nil {
 		panic(err)
 	}
 	return config
 }
 
+// 生成一个全局唯一的ID
 func generateUUID() uuid.UUID {
 	id := uuid.NewV1()
 	return id

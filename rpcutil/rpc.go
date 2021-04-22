@@ -12,7 +12,7 @@ type ClientEnd struct {
 	Client *rpc.Client
 }
 
-// 使用这个函数来进行RPC通信
+// 使用这个函数来进行RPC通信, 请求运行对端名为methodName的函数, args是函数参数, reply是函数返回值
 func (e *ClientEnd) Call(methodName string, args interface{}, reply interface{}) bool {
 	// 如果client为空，则首先创建一个rpc.client实例
 	if e.Client == nil {
