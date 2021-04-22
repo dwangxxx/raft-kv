@@ -6,6 +6,8 @@ Raft论文：[In Search of an Understandable Consensus Algorithm(Extended Versio
 
 部分代码参考了一些别的实现。
 
+其中主要的难点就是对Raft算法的理解，以及实现中的一些细节，对我来说最难的就是并发的一些东西。就是**设计好哪些地方该加锁，哪些地方不该加锁，即如何在保证并发数据正确的情况下，保证并发的性能**。
+
 ## 主要模块
 
 项目代码主要分为几个模块：
